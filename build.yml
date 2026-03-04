@@ -1,0 +1,54 @@
+name: Build RasterToSpline.Core DLL
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:   # allows manual trigger from the Actions tab
+
+jobs:
+  build:
+    runs-on: windows-latest   # MUST be Windows for .NET Framework 4.8
+
+    steps:
+
+      # 1. Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install .NET Framework 4.8 targeting pack
+      #    (windows-latest already has it, this step makes it explicit)
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # 3. Restore NuGet packages (downloads OpenCvSharp4 + runtime)
+      - name: Restore NuGet packages
+        run: nuget restore RasterToSpline.sln
+
+      # 4. Build Release x64
+      - name: Build Release x64
+        run: |
+          msbuild RasterToSpline.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /v:minimal
+
+      # 5. Collect the 4 DLLs into a staging folder
+      - name: Collect DLLs
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          $outDir = "src\bin\Release\net48"
+          Copy-Item "$outDir\RasterToSpline.Core.dll"        dist\
+          Copy-Item "$outDir\OpenCvSharp.dll"                dist\
+          Copy-Item "$outDir\OpenCvSharp.runtime.win.dll"    dist\
+          Copy-Item "$outDir\OpenCvSharpExtern.dll"          dist\
+          Write-Host "=== Files in dist\ ==="
+          Get-ChildItem dist\ | Format-Table Name, Length
+
+      # 6. Upload as a downloadable artifact (kept for 90 days)
+      - name: Upload DLLs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RasterToSpline-DLLs-x64
+          path: dist\
+          retention-days: 90
