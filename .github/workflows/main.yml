@@ -1,0 +1,44 @@
+name: Build RasterToSpline.Core DLL
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore RasterToSpline.sln
+
+      - name: Build Release x64
+        run: |
+          msbuild RasterToSpline.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /m `
+            /v:minimal
+
+      - name: Collect DLLs
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          $outDir = "src\bin\Release\net48"
+          Copy-Item "$outDir\RasterToSpline.Core.dll"      dist\
+          Copy-Item "$outDir\OpenCvSharp.dll"              dist\
+          Copy-Item "$outDir\OpenCvSharp.runtime.win.dll"  dist\
+          Copy-Item "$outDir\OpenCvSharpExtern.dll"        dist\
+
+      - name: Upload DLLs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RasterToSpline-DLLs-x64
+          path: dist\
+          retention-days: 90
